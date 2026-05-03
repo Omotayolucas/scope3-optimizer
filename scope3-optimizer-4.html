@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Scope 3 Optimizer — Supply Chain Emissions & Cost Trade-off</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0e1a; --surface:#111827; --surface2:#1a2235; --border:#1e2d45;
+    --accent:#00e5a0; --accent2:#ff6b35; --accent3:#3b82f6;
+    --text:#e2e8f0; --muted:#64748b; --danger:#ef4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,160,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+  .container{max-width:1280px;margin:0 auto;padding:0 24px;position:relative;z-index:1;}
+  header{border-bottom:1px solid var(--border);padding:20px 0;margin-bottom:32px;}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  .logo-block{display:flex;align-items:center;gap:12px;}
+  .logo-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--accent3));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  h1{font-size:1.1rem;font-weight:800;letter-spacing:-.5px;}
+  h1 span{color:var(--accent);}
+  .badge{font-family:'Space Mono',monospace;font-size:.65rem;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.3);padding:4px 10px;border-radius:4px;letter-spacing:1px;}
+  .export-btn{padding:8px 16px;border-radius:8px;font-family:'Space Mono',monospace;font-size:.7rem;font-weight:700;letter-spacing:.5px;cursor:pointer;border:none;transition:all .2s;display:flex;align-items:center;gap:6px;}
+  .export-pdf{background:rgba(255,107,53,.15);color:var(--accent2);border:1px solid rgba(255,107,53,.3);}
+  .export-pdf:hover{background:rgba(255,107,53,.25);}
+  .export-csv{background:rgba(59,130,246,.15);color:var(--accent3);border:1px solid rgba(59,130,246,.3);}
+  .export-csv:hover{background:rgba(59,130,246,.25);}
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:28px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-color,var(--accent));}
+  .stat-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+  .stat-value{font-size:1.5rem;font-weight:800;}
+  .stat-sub{font-size:.68rem;color:var(--muted);margin-top:4px;font-family:'Space Mono',monospace;}
+  .main-grid{display:grid;grid-template-columns:320px 1fr;gap:20px;margin-bottom:24px;}
+  @media(max-width:900px){.main-grid{grid-template-columns:1fr;}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;}
+  .panel-title{font-size:.75rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+  .panel-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .control-group{margin-bottom:18px;}
+  .control-label{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:8px;}
+  .control-label span:last-child{font-family:'Space Mono',monospace;color:var(--accent);font-size:.78rem;}
+  input[type=range]{width:100%;-webkit-appearance:none;height:4px;border-radius:2px;background:var(--border);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(0,229,160,.5);}
+  .supplier-table{width:100%;border-collapse:collapse;font-size:.8rem;}
+  .supplier-table th{text-align:left;padding:8px 10px;color:var(--muted);font-family:'Space Mono',monospace;font-size:.65rem;letter-spacing:1px;border-bottom:1px solid var(--border);font-weight:400;}
+  .supplier-table td{padding:10px;border-bottom:1px solid rgba(30,45,69,.5);vertical-align:middle;}
+  .supplier-table tr:last-child td{border-bottom:none;}
+  .supplier-table tr.selected td{background:rgba(0,229,160,.06);}
+  .supplier-tag{display:inline-block;font-size:.65rem;padding:2px 7px;border-radius:3px;font-family:'Space Mono',monospace;letter-spacing:.5px;}
+  .tag-low{background:rgba(0,229,160,.15);color:var(--accent);}
+  .tag-med{background:rgba(59,130,246,.15);color:var(--accent3);}
+  .tag-high{background:rgba(239,68,68,.15);color:var(--danger);}
+  .bar-wrap{width:80px;height:6px;background:var(--border);border-radius:3px;display:inline-block;vertical-align:middle;}
+  .bar-fill{height:100%;border-radius:3px;transition:width .4s;}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
+  @media(max-width:768px){.charts-row{grid-template-columns:1fr;}}
+  .chart-wrap{position:relative;height:280px;}
+  .tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--surface2);padding:4px;border-radius:10px;width:fit-content;}
+  .tab{padding:8px 18px;border-radius:7px;font-size:.75rem;font-family:'Space Mono',monospace;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .2s;letter-spacing:.5px;}
+  .tab.active{background:var(--surface);color:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.3);}
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+  .mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+  @media(max-width:600px){.mc-grid{grid-template-columns:1fr;}}
+  .mc-stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .mc-stat-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  .mc-stat-val{font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;}
+  .mc-stat-range{font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted);margin-top:3px;}
+  .result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+  .result-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;transition:transform .2s;cursor:pointer;}
+  .result-card:hover{transform:translateY(-2px);}
+  .result-card::before{content:'';display:block;width:32px;height:3px;border-radius:2px;background:var(--accent-color,var(--accent));margin-bottom:12px;}
+  .result-name{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+  .result-title{font-size:1rem;font-weight:700;margin-bottom:14px;}
+  .result-metric{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .result-metric-label{font-size:.75rem;color:var(--muted);}
+  .result-metric-val{font-family:'Space Mono',monospace;font-size:.82rem;}
+  .run-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),#00b87a);color:#0a0e1a;border:none;border-radius:10px;font-family:'Space Mono',monospace;font-size:.85rem;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;margin-bottom:10px;}
+  .run-btn:hover{opacity:.9;transform:translateY(-1px);}
+  .mc-btn{width:100%;padding:11px;background:rgba(168,85,247,.15);color:#a855f7;border:1px solid rgba(168,85,247,.3);border-radius:10px;font-family:'Space Mono',monospace;font-size:.78rem;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;margin-bottom:12px;}
+  .mc-btn:hover{background:rgba(168,85,247,.25);}
+  .insight-box{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:10px;padding:14px 16px;font-size:.8rem;line-height:1.6;color:#94a3b8;margin-top:12px;}
+  .insight-box strong{color:var(--accent);}
+  select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-family:'Syne',sans-serif;font-size:.82rem;cursor:pointer;outline:none;width:100%;margin-bottom:14px;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+  .live-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;display:inline-block;margin-right:6px;animation:pulse 2s infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(168,85,247,.3);border-top-color:#a855f7;border-radius:50%;animation:spin .7s linear infinite;}
+  footer{border-top:1px solid var(--border);padding:20px 0;text-align:center;font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:1px;}
+  /* Tooltip */
+  .tip-wrap{position:relative;display:inline-flex;align-items:center;gap:5px;}
+  .tip-icon{width:14px;height:14px;border-radius:50%;background:rgba(100,116,139,.25);color:var(--muted);font-size:.65rem;font-family:'Space Mono',monospace;display:inline-flex;align-items:center;justify-content:center;cursor:help;border:1px solid var(--border);flex-shrink:0;}
+  .tip-icon:hover+.tip-box,.tip-icon:focus+.tip-box{display:block;}
+  .tip-box{display:none;position:absolute;left:20px;top:-4px;width:220px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.72rem;color:#94a3b8;line-height:1.5;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.4);}
+  /* Assumption banner */
+  .assumption-banner{background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:8px 12px;font-size:.72rem;color:#93c5fd;margin-bottom:14px;line-height:1.5;}
+  /* Methodology collapsible */
+  .method-toggle{width:100%;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.15);border-radius:8px;padding:10px 14px;font-family:'Space Mono',monospace;font-size:.72rem;color:var(--accent);cursor:pointer;text-align:left;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+  .method-body{display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:.75rem;color:#94a3b8;line-height:1.6;margin-bottom:12px;}
+  .method-body.open{display:block;}
+  .method-body h4{color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;margin-top:10px;}
+  .method-body h4:first-child{margin-top:0;}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="header-inner">
+    <div class="logo-block">
+      <div class="logo-icon">🌿</div>
+      <div>
+        <h1>Scope 3 <span>Optimizer</span></h1>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:2px;">Multi-Objective Supplier Routing · Cost vs Emissions</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <span class="badge">EU CSRD</span>
+      <span class="badge">GHG PROTOCOL</span>
+      <button class="export-btn export-csv" onclick="exportCSV()">⬇ CSV</button>
+      <button class="export-btn export-pdf" onclick="exportPDF()">⬇ PDF</button>
+      <span style="font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);"><span class="live-dot"></span>LIVE</span>
+    </div>
+  </div>
+</header>
+
+<div class="stats-row">
+  <div class="stat-card" style="--accent-color:#00e5a0"><div class="stat-label">Suppliers Modelled</div><div class="stat-value">12</div><div class="stat-sub">4 regions globally</div></div>
+  <div class="stat-card" style="--accent-color:#3b82f6"><div class="stat-label">Pareto Solutions</div><div class="stat-value" id="s-pareto">—</div><div class="stat-sub">Non-dominated set</div></div>
+  <div class="stat-card" style="--accent-color:#ff6b35"><div class="stat-label">Max Cost Saving</div><div class="stat-value" id="s-costsave">—</div><div class="stat-sub" id="s-costsave-sub">vs. avg of eligible suppliers</div></div>
+  <div class="stat-card" style="--accent-color:#00e5a0"><div class="stat-label">Max CO₂ Reduction</div><div class="stat-value" id="s-co2save">—</div><div class="stat-sub" id="s-co2save-sub">tCO₂e vs. avg of eligible suppliers</div></div>
+  <div class="stat-card" style="--accent-color:#a855f7"><div class="stat-label">MC 95% VaR Cost</div><div class="stat-value" id="s-var">Run MC</div><div class="stat-sub">Stochastic upper bound</div></div>
+  <div class="stat-card" style="--accent-color:#eab308"><div class="stat-label">Carbon Credit Value</div><div class="stat-value" id="s-carbon">—</div><div class="stat-sub">At selected carbon price</div></div>
+</div>
+
+<div class="main-grid">
+  <div>
+    <div class="panel">
+      <div class="panel-title">Optimization Parameters</div>
+      <div class="control-group">
+        <div class="control-label"><span>Cost Weight (α)</span><span id="alphaVal">0.50</span></div>
+        <input type="range" id="alpha" min="0" max="1" step="0.05" value="0.5">
+        <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);margin-top:4px;"><span>← Greener</span><span>Cheaper →</span></div>
+      </div>
+      <div class="control-group">
+        <div class="control-label">
+          <span class="tip-wrap">Annual Demand (units)
+            <span class="tip-icon" tabindex="0">i</span>
+            <span class="tip-box">Total units procured per year. Assumed to be split equally across all selected suppliers. Capacity constraints and minimum order quantities are not modelled in this prototype.</span>
+          </span>
+          <span id="demandVal">50,000</span>
+        </div>
+        <input type="range" id="demand" min="10000" max="200000" step="5000" value="50000">
+      </div>
+      <div class="control-group">
+        <div class="control-label">
+          <span class="tip-wrap">Demand Volatility (log-normal σ)
+            <span class="tip-icon" tabindex="0">i</span>
+            <span class="tip-box">Standard deviation of ln(demand). Used in Monte Carlo simulation. Approximates the coefficient of variation (CV) for small values (&lt;30%). E.g. σ=0.20 ≈ 20% CV.</span>
+          </span>
+          <span id="volVal">0.20</span>
+        </div>
+        <input type="range" id="vol" min="0.05" max="0.50" step="0.05" value="0.20">
+        <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);margin-top:4px;"><span>Low risk</span><span>High risk</span></div>
+      </div>
+      <div class="control-group">
+        <div class="control-label"><span>Max Lead Time (days)</span><span id="leadVal">30</span></div>
+        <input type="range" id="leadtime" min="7" max="60" step="1" value="30">
+      </div>
+      <div class="control-group">
+        <div class="control-label"><span>Carbon Price ($/tCO₂e)</span><span id="carbonPriceVal">$45</span></div>
+        <input type="range" id="carbonPrice" min="10" max="150" step="5" value="45">
+      </div>
+      <div class="control-group">
+        <div class="control-label"><span>Max Suppliers</span><span id="maxSupVal">4</span></div>
+        <input type="range" id="maxSup" min="1" max="8" step="1" value="4">
+      </div>
+      <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:6px;letter-spacing:1px;text-transform:uppercase;">Industry Sector</label>
+      <select id="sector">
+        <option value="fmcg">FMCG / Consumer Goods</option>
+        <option value="pharma">Pharmaceuticals</option>
+        <option value="auto">Automotive</option>
+        <option value="tech">Electronics / Tech</option>
+        <option value="agro">Agro-Processing</option>
+      </select>
+      <button class="run-btn" id="runBtn" aria-label="Run multi-objective optimization" onclick="runOptimizer()">▶ RUN OPTIMIZATION</button>
+      <button class="mc-btn" id="mcBtn" onclick="runMonteCarlo()">🎲 RUN MONTE CARLO (1,000 trials)</button>
+      <div class="insight-box" id="insightBox">Adjust parameters and click <strong>Run Optimization</strong> to generate the Pareto frontier and routing recommendations.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Supplier Network</div>
+    <div class="assumption-banner">ℹ️ <strong>Allocation assumption:</strong> Annual demand is split equally across all selected suppliers. Capacity constraints and minimum order quantities are omitted in this prototype.</div>
+    <button class="method-toggle" onclick="toggleMethod()"><span>📐 Methodology & Model Notes</span><span id="methodArrow">▼</span></button>
+    <div class="method-body" id="methodBody">
+      <h4>Weighted-Sum Pareto Optimisation</h4>
+      For each α ∈ [0,1] (40 steps), suppliers are scored as: <code>score = α·C̃ + (1−α)·Ẽ</code> where C̃ and Ẽ are min-max normalised cost and emissions. Top-n suppliers by score are selected. Non-dominated solutions across all α values form the Pareto frontier.
+      <h4>Baseline Definition</h4>
+      The "baseline" is a naive equal-weight split across all eligible suppliers (those within the lead time constraint). It represents a simple unoptimised allocation — not a cost-optimal or emissions-optimal route. The number of eligible suppliers updates dynamically with the lead time slider.
+      <h4>Monte Carlo Simulation</h4>
+      Demand D ~ LogNormal(μ, σ) where μ = ln(D̄) − σ²/2 and σ is the log-normal standard deviation set by the slider. 1,000 trials are drawn using the Box-Muller transform. VaR is the empirical 95th/99th percentile of the cost distribution.
+      <h4>Carbon Price Sensitivity</h4>
+      Total cost = procurement cost + CO₂e × carbon price. The crossover point is where green routing total cost equals cost-optimised total cost as EU ETS price rises.
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="supplier-table">
+        <thead><tr><th>Supplier</th><th>Region</th><th>Unit Cost</th><th>CO₂e/unit</th><th>Lead</th><th>Reliability</th><th>Tier</th><th>Status</th></tr></thead>
+        <tbody id="supplierBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="charts-row">
+  <div class="panel">
+    <div class="panel-title">Pareto Frontier — Cost vs Emissions</div>
+    <div class="chart-wrap"><canvas id="paretoChart"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Supplier Contribution Analysis</div>
+    <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-bottom:24px;">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('routing')">Routing Scenarios</button>
+    <button class="tab" onclick="switchTab('montecarlo')">Monte Carlo Risk</button>
+    <button class="tab" onclick="switchTab('sensitivity')">Carbon Sensitivity</button>
+  </div>
+  <div class="tab-content active" id="tab-routing">
+    <div class="result-grid" id="resultGrid">
+      <div style="color:var(--muted);font-size:.82rem;grid-column:1/-1;padding:20px 0;text-align:center;">Run the optimizer to see routing recommendations →</div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-montecarlo">
+    <div style="color:var(--muted);font-size:.82rem;margin-bottom:16px;">Stochastic demand simulation using a <strong style="color:var(--text)">log-normal distribution</strong>: D ~ LogNormal(μ, σ²) where σ is the log-normal standard deviation set by the slider. 1,000 independent trials. Red bars in the histogram show the tail-risk zone above the 95% VaR threshold.</div>
+    <div id="mcResults"><div style="color:var(--muted);font-size:.82rem;text-align:center;padding:20px 0;">Click <strong style="color:#a855f7">Run Monte Carlo</strong> in the control panel →</div></div>
+  </div>
+  <div class="tab-content" id="tab-sensitivity">
+    <div style="color:var(--muted);font-size:.82rem;margin-bottom:16px;">How total cost (procurement + carbon cost) changes as EU ETS carbon price varies. Green routes gain advantage at higher carbon prices.</div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="sensitivityChart"></canvas></div>
+  </div>
+</div>
+
+<footer>
+  SCOPE 3 OPTIMIZER v2.0 · PARETO + MONTE CARLO · GHG PROTOCOL CAT.1 · EU CSRD ART.29<br>
+  <span style="opacity:.5">Supply Chain Portfolio Project · 2026</span>
+</footer>
+</div>
+
+<script>
+const BASE_SUPPLIERS=[
+  {id:'S01',name:'GreenMat Lagos',   region:'West Africa',  baseCost:12.4,co2:.8, lead:7, rel:.97,tier:1},
+  {id:'S02',name:'EcoSource Accra',  region:'West Africa',  baseCost:11.8,co2:1.1,lead:9, rel:.94,tier:1},
+  {id:'S03',name:'NordSupply SE',    region:'Europe',       baseCost:18.2,co2:.5, lead:21,rel:.99,tier:1},
+  {id:'S04',name:'SolarParts DE',    region:'Europe',       baseCost:20.1,co2:.3, lead:18,rel:.98,tier:2},
+  {id:'S05',name:'AsiaFlex SZ',      region:'Asia Pacific', baseCost:9.6, co2:2.4,lead:28,rel:.91,tier:1},
+  {id:'S06',name:'Pacific Green TW', region:'Asia Pacific', baseCost:10.2,co2:1.9,lead:25,rel:.93,tier:1},
+  {id:'S07',name:'CoalChem IN',      region:'Asia Pacific', baseCost:7.8, co2:4.1,lead:32,rel:.88,tier:2},
+  {id:'S08',name:'TexMex MX',        region:'Americas',     baseCost:13.5,co2:1.4,lead:14,rel:.95,tier:1},
+  {id:'S09',name:'CleanMfg CA',      region:'Americas',     baseCost:16.8,co2:.6, lead:16,rel:.97,tier:2},
+  {id:'S10',name:'BrazilSust BR',    region:'Americas',     baseCost:11.2,co2:1.2,lead:19,rel:.92,tier:1},
+  {id:'S11',name:'WindParts DK',     region:'Europe',       baseCost:22.4,co2:.2, lead:20,rel:.99,tier:2},
+  {id:'S12',name:'CheapChem CN',     region:'Asia Pacific', baseCost:6.9, co2:5.2,lead:35,rel:.85,tier:3},
+];
+const SMULT={fmcg:1,pharma:1.4,auto:1.2,tech:1.1,agro:.9};
+let pChart=null,bChart=null,sChart=null,mChart=null,lastR=null,lastMC=null;
+
+window.addEventListener('DOMContentLoaded',()=>{renderTable([]);initSliders();runOptimizer();});
+
+function initSliders(){
+  [['alpha','alphaVal',v=>parseFloat(v).toFixed(2)],
+   ['demand','demandVal',v=>parseInt(v).toLocaleString()],
+   ['vol','volVal',v=>parseFloat(v).toFixed(2)],
+   ['leadtime','leadVal',v=>v],
+   ['carbonPrice','carbonPriceVal',v=>'$'+v],
+   ['maxSup','maxSupVal',v=>v]
+  ].forEach(([id,did,fmt])=>document.getElementById(id).addEventListener('input',()=>document.getElementById(did).textContent=fmt(document.getElementById(id).value)));
+}
+
+function switchTab(n){
+  ['routing','montecarlo','sensitivity'].forEach((t,i)=>{
+    document.querySelectorAll('.tab')[i].classList.toggle('active',t===n);
+    document.getElementById('tab-'+t).classList.toggle('active',t===n);
+  });
+  if(n==='sensitivity'&&lastR) renderSensitivity();
+}
+
+function renderTable(selIds){
+  const mult=SMULT[document.getElementById('sector')?.value||'fmcg'];
+  document.getElementById('supplierBody').innerHTML=BASE_SUPPLIERS.map(s=>{
+    const sel=selIds.includes(s.id);
+    const lvl=s.co2<1?'low':s.co2<2.5?'med':'high';
+    const lbl=s.co2<1?'LOW':s.co2<2.5?'MED':'HIGH';
+    const c2=s.co2<1?'var(--accent)':s.co2<2.5?'var(--accent3)':'var(--danger)';
+    const rc=s.rel>.96?'var(--accent)':s.rel>.92?'var(--accent3)':'var(--danger)';
+    return`<tr class="${sel?'selected':''}">
+      <td><span style="font-weight:600">${s.name}</span><br><span style="font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted)">${s.id}</span></td>
+      <td style="color:var(--muted);font-size:.75rem">${s.region}</td>
+      <td style="font-family:'Space Mono',monospace">$${(s.baseCost*mult).toFixed(2)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(100,s.co2/5.5*100)}%;background:${c2}"></div></div><span style="font-family:'Space Mono',monospace;font-size:.75rem">${s.co2}</span></div></td>
+      <td style="font-family:'Space Mono',monospace">${s.lead}d</td>
+      <td><div class="bar-wrap"><div class="bar-fill" style="width:${s.rel*100}%;background:${rc}"></div></div></td>
+      <td style="font-size:.7rem;color:var(--muted)">T${s.tier}</td>
+      <td><span class="supplier-tag tag-${lvl}">${sel?'✓ SEL':lbl}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function runOptimizer(){
+  const alpha=parseFloat(document.getElementById('alpha').value);
+  const demand=parseInt(document.getElementById('demand').value);
+  const maxL=parseInt(document.getElementById('leadtime').value);
+  const cp=parseFloat(document.getElementById('carbonPrice').value);
+  const maxS=parseInt(document.getElementById('maxSup').value);
+  const sector=document.getElementById('sector').value;
+  const mult=SMULT[sector];
+  const elig=BASE_SUPPLIERS.filter(s=>s.lead<=maxL);
+  if(elig.length<2){document.getElementById('insightBox').innerHTML='<strong style="color:var(--danger)">⚠ Too few eligible suppliers. Increase max lead time.</strong>';return;}
+
+  const bCost=elig.reduce((a,s)=>a+s.baseCost*mult,0)/elig.length*demand;
+  const bCO2=elig.reduce((a,s)=>a+s.co2,0)/elig.length*demand;
+
+  const pts=Array.from({length:41},(_,i)=>i/40).map(a=>{const r=gsel(elig,a,1-a,maxS,demand,mult);return{alpha:a,...r};});
+  const nd=pts.filter((p,i)=>!pts.some((q,j)=>i!==j&&q.cost<=p.cost&&q.co2<=p.co2&&(q.cost<p.cost||q.co2<p.co2)));
+
+  const cOpt=nd.reduce((a,b)=>a.cost<b.cost?a:b);
+  const gOpt=nd.reduce((a,b)=>a.co2<b.co2?a:b);
+  const bal=nd.reduce((a,b)=>Math.abs(a.alpha-.5)<Math.abs(b.alpha-.5)?a:b);
+  const uPref=gsel(elig,alpha,1-alpha,maxS,demand,mult);
+
+  lastR={cOpt,gOpt,bal,uPref,nd,bCost,bCO2,cp,demand,mult,elig,maxS,sector,alpha};
+  const co2s=bCO2-gOpt.co2;
+  document.getElementById('s-pareto').textContent=nd.length;
+  document.getElementById('s-costsave').textContent='$'+fl(bCost-cOpt.cost);
+  document.getElementById('s-co2save').textContent=fl(co2s)+'t';
+  document.getElementById('s-carbon').textContent='$'+fl(co2s*cp);
+  document.getElementById('s-costsave-sub').textContent=`vs. avg of ${elig.length} eligible suppliers`;
+  document.getElementById('s-co2save-sub').textContent=`tCO₂e vs. avg of ${elig.length} eligible suppliers`;
+
+  renderTable(uPref.sel.map(s=>s.id));
+  renderPareto(nd,uPref);
+  renderBar(uPref.sel,mult,demand);
+  renderCards(cOpt,gOpt,bal,uPref,bCost,bCO2,cp,demand);
+  updateInsight(uPref,alpha,cp,bCO2);
+}
+
+function gsel(elig,cw,ew,maxN,demand,mult){
+  const costs=elig.map(s=>s.baseCost*mult),co2s=elig.map(s=>s.co2);
+  const maxC=Math.max(...costs),minC=Math.min(...costs),maxE=Math.max(...co2s),minE=Math.min(...co2s);
+  const scored=elig.map((s,i)=>({...s,score:cw*(costs[i]-minC)/(maxC-minC+.001)+ew*(co2s[i]-minE)/(maxE-minE+.001)})).sort((a,b)=>a.score-b.score);
+  const sel=scored.slice(0,Math.min(maxN,scored.length));
+  return{sel,cost:sel.reduce((a,s)=>a+s.baseCost*mult,0)/sel.length*demand,co2:sel.reduce((a,s)=>a+s.co2,0)/sel.length*demand};
+}
+
+function runMonteCarlo(){
+  if(!lastR){runOptimizer();return;}
+  const btn=document.getElementById('mcBtn');
+  const runBtn=document.getElementById('runBtn');
+  btn.innerHTML='<span class="spinner"></span> Simulating...';btn.disabled=true;
+  runBtn.disabled=true;runBtn.style.opacity='0.5';
+  setTimeout(()=>{
+    const{uPref,bCO2,cp,demand,mult,elig}=lastR;
+    const vol=parseFloat(document.getElementById('vol').value); // already log-normal σ
+    const N=1000,mu=Math.log(demand)-.5*vol*vol,sig=vol;
+    const costs=[],co2s=[],savs=[];
+    for(let i=0;i<N;i++){
+      const d=Math.round(lnSample(mu,sig));
+      const c=uPref.sel.reduce((a,s)=>a+s.baseCost*mult,0)/uPref.sel.length*d;
+      const e=uPref.sel.reduce((a,s)=>a+s.co2,0)/uPref.sel.length*d;
+      const bc=elig.reduce((a,s)=>a+s.baseCost*mult,0)/elig.length*d;
+      costs.push(c);co2s.push(e);savs.push(bc-c);
+    }
+    costs.sort((a,b)=>a-b);co2s.sort((a,b)=>a-b);
+    const mc={costs,co2s,N,
+      meanCost:avg(costs),stdCost:sd(costs),
+      var95:costs[Math.floor(.95*N)],var99:costs[Math.floor(.99*N)],
+      meanCO2:avg(co2s),stdCO2:sd(co2s),meanSav:avg(savs)
+    };
+    lastMC=mc;
+    document.getElementById('s-var').textContent='$'+fl(mc.var95);
+    renderMC(mc,cp);
+    switchTab('montecarlo');
+    btn.innerHTML='🎲 RUN MONTE CARLO (1,000 trials)';btn.disabled=false;
+    runBtn.disabled=false;runBtn.style.opacity='1';
+  },50);
+}
+
+function lnSample(mu,sig){const u1=Math.random(),u2=Math.random();return Math.exp(mu+sig*Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2));}
+function avg(a){return a.reduce((x,y)=>x+y,0)/a.length;}
+function sd(a){const m=avg(a);return Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/a.length);}
+
+function renderMC(mc,cp){
+  const{costs,N,meanCost,stdCost,var95,var99,meanCO2,stdCO2,meanSav}=mc;
+  document.getElementById('mcResults').innerHTML=`
+    <div class="mc-grid">
+      <div class="mc-stat"><div class="mc-stat-label">Mean Annual Cost</div><div class="mc-stat-val" style="color:var(--accent2)">$${fl(meanCost)}</div><div class="mc-stat-range">σ = $${fl(stdCost)}</div></div>
+      <div class="mc-stat"><div class="mc-stat-label">95% Value-at-Risk</div><div class="mc-stat-val" style="color:#ef4444">$${fl(var95)}</div><div class="mc-stat-range">99% VaR = $${fl(var99)}</div></div>
+      <div class="mc-stat"><div class="mc-stat-label">Mean CO₂e Exposure</div><div class="mc-stat-val" style="color:var(--accent)">${fl(meanCO2)}t</div><div class="mc-stat-range">σ = ${fl(stdCO2)}t</div></div>
+      <div class="mc-stat"><div class="mc-stat-label">Expected Cost Saving</div><div class="mc-stat-val" style="color:#3b82f6">$${fl(meanSav)}</div><div class="mc-stat-range">vs. unoptimized baseline</div></div>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:.7rem;color:var(--muted);margin-bottom:14px;">${N} log-normal trials · σ=${parseFloat(document.getElementById('vol').value).toFixed(2)} · Carbon exposure = $${fl(meanCO2*cp)}</div>
+    <div class="chart-wrap" style="height:220px;"><canvas id="mcChart"></canvas></div>`;
+  setTimeout(()=>{
+    const ctx=document.getElementById('mcChart')?.getContext('2d');if(!ctx)return;
+    if(mChart)mChart.destroy();
+    const bins=30,mn=costs[0],mx=costs[costs.length-1],bw=(mx-mn)/bins;
+    const cnts=Array(bins).fill(0);
+    costs.forEach(c=>{const b=Math.min(bins-1,Math.floor((c-mn)/bw));cnts[b]++;});
+    const v95b=Math.floor((var95-mn)/bw);
+    mChart=new Chart(ctx,{type:'bar',data:{labels:Array.from({length:bins},(_,i)=>'$'+fl(mn+i*bw)),datasets:[{label:'Cost Distribution',data:cnts,backgroundColor:cnts.map((_,i)=>i>=v95b?'rgba(239,68,68,.5)':'rgba(168,85,247,.5)'),borderColor:cnts.map((_,i)=>i>=v95b?'#ef4444':'#a855f7'),borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',font:{family:'Space Mono',size:9}}}},scales:{x:{ticks:{color:'#64748b',font:{family:'Space Mono',size:8},maxTicksLimit:8},grid:{color:'rgba(30,45,69,.5)'}},y:{ticks:{color:'#64748b',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.5)'},title:{display:true,text:'Frequency',color:'#64748b',font:{family:'Space Mono',size:9}}}}}});
+  },50);
+}
+
+function renderSensitivity(){
+  if(!lastR)return;
+  const ctx=document.getElementById('sensitivityChart').getContext('2d');
+  if(sChart)sChart.destroy();
+  const{elig,demand,mult}=lastR;
+  const prices=[10,20,30,45,60,80,100,120,150];
+  const tc=(aw,ew)=>prices.map(p=>{const r=gsel(elig,aw,ew,4,demand,mult);return+(r.cost+r.co2*p)/1e6;});
+  sChart=new Chart(ctx,{type:'line',data:{labels:prices.map(p=>'$'+p),datasets:[
+    {label:'Balanced Route',data:tc(.5,.5),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',borderWidth:2,tension:.4,fill:false,pointRadius:4},
+    {label:'Green Route',   data:tc(.1,.9),borderColor:'#00e5a0',backgroundColor:'rgba(0,229,160,.1)',borderWidth:2,tension:.4,fill:false,pointRadius:4},
+    {label:'Cost Route',    data:tc(.9,.1),borderColor:'#ff6b35',backgroundColor:'rgba(255,107,53,.1)',borderWidth:2,tension:.4,fill:false,pointRadius:4},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',font:{family:'Space Mono',size:10}}}},scales:{x:{title:{display:true,text:'Carbon Price ($/tCO₂e)',color:'#64748b',font:{family:'Space Mono',size:10}},ticks:{color:'#64748b',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.5)'}},y:{title:{display:true,text:'Total Cost incl. Carbon ($M)',color:'#64748b',font:{family:'Space Mono',size:10}},ticks:{color:'#64748b',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+function renderPareto(nd,uPref){
+  const ctx=document.getElementById('paretoChart').getContext('2d');
+  if(pChart)pChart.destroy();
+  const sorted=[...nd].sort((a,b)=>a.cost-b.cost);
+  pChart=new Chart(ctx,{type:'scatter',data:{datasets:[
+    {label:'Pareto Frontier',data:sorted.map(p=>({x:p.cost/1e6,y:p.co2/1000})),borderColor:'rgba(0,229,160,.6)',backgroundColor:'rgba(0,229,160,.15)',pointRadius:5,showLine:true,borderWidth:2,tension:.4,fill:false},
+    {label:'Your Selection',data:[{x:uPref.cost/1e6,y:uPref.co2/1000}],borderColor:'#ff6b35',backgroundColor:'#ff6b35',pointRadius:10,pointStyle:'star'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',font:{family:'Space Mono',size:10}}},tooltip:{callbacks:{label:c=>`Cost: $${c.parsed.x.toFixed(2)}M | CO₂: ${c.parsed.y.toFixed(1)}k t`}}},scales:{x:{title:{display:true,text:'Annual Cost ($M)',color:'#64748b',font:{family:'Space Mono',size:10}},ticks:{color:'#64748b',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.5)'}},y:{title:{display:true,text:'CO₂e (k tonnes)',color:'#64748b',font:{family:'Space Mono',size:10}},ticks:{color:'#64748b',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+function renderBar(sel,mult,demand){
+  const ctx=document.getElementById('barChart').getContext('2d');
+  if(bChart)bChart.destroy();
+  bChart=new Chart(ctx,{type:'bar',data:{labels:sel.map(s=>s.name.split(' ')[0]),datasets:[
+    {label:'Cost ($K)',data:sel.map(s=>+(s.baseCost*mult*(demand/sel.length)/1000).toFixed(1)),backgroundColor:'rgba(255,107,53,.7)',borderColor:'#ff6b35',borderWidth:1,yAxisID:'y'},
+    {label:'CO₂e (t)',data:sel.map(s=>+(s.co2*(demand/sel.length)).toFixed(0)),backgroundColor:'rgba(0,229,160,.6)',borderColor:'#00e5a0',borderWidth:1,yAxisID:'y1'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',font:{family:'Space Mono',size:10}}}},scales:{x:{ticks:{color:'#64748b',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.5)'}},y:{position:'left',ticks:{color:'#ff6b35',font:{family:'Space Mono',size:9}},grid:{color:'rgba(30,45,69,.3)'}},y1:{position:'right',ticks:{color:'#00e5a0',font:{family:'Space Mono',size:9}},grid:{display:false}}}}});
+}
+
+function renderCards(cOpt,gOpt,bal,uPref,bCost,bCO2,cp,demand){
+  const scens=[
+    {k:'co',lbl:'Cost-Optimized', o:cOpt, c:'#ff6b35',i:'💰'},
+    {k:'bal',lbl:'Balanced Route',o:bal,  c:'#3b82f6',i:'⚖️'},
+    {k:'go',lbl:'Green-Optimized',o:gOpt, c:'#00e5a0',i:'🌿'},
+    {k:'up',lbl:'Your α Selection',o:uPref,c:'#a855f7',i:'⭐'},
+  ];
+  document.getElementById('resultGrid').innerHTML=scens.map(s=>{
+    const cs=bCost-s.o.cost,es=bCO2-s.o.co2;
+    return`<div class="result-card" style="--accent-color:${s.c}">
+      <div class="result-name">${s.i} ${s.lbl}</div>
+      <div class="result-title">${s.o.sel[0]?.name||'—'} &nbsp;+&nbsp;${s.o.sel.length-1} more</div>
+      <div class="result-metric"><span class="result-metric-label">Annual Cost</span><span class="result-metric-val" style="color:${s.c}">$${fl(s.o.cost)}</span></div>
+      <div class="result-metric"><span class="result-metric-label">CO₂ Saved</span><span class="result-metric-val" style="color:#00e5a0">${fl(es)}t</span></div>
+      <div class="result-metric"><span class="result-metric-label">Carbon Credits</span><span class="result-metric-val">$${fl(Math.max(0,es*cp))}</span></div>
+      <div class="result-metric"><span class="result-metric-label">Cost Saving</span><span class="result-metric-val" style="color:${cs>0?'#00e5a0':'#ef4444'}">${cs>0?'+':''}$${fl(cs)}</span></div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:10px;font-family:'Space Mono',monospace;line-height:1.5">${s.o.sel.slice(0,3).map(x=>x.name).join(', ')}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateInsight(uPref,alpha,cp,bCO2){
+  const pct=((bCO2-uPref.co2)/bCO2*100).toFixed(1);
+  let tradeoffMsg='';
+  if(alpha===0) tradeoffMsg='<span style="color:#00e5a0">Emissions-first routing: selecting lowest-carbon suppliers only — cost is not considered. May produce expensive procurement decisions.</span>';
+  else if(alpha===1) tradeoffMsg='<span style="color:#ff6b35">Cost-first routing: ignoring emissions entirely. Lowest cost but highest Scope 3 exposure — not CSRD-compliant as a standalone strategy.</span>';
+  else if(alpha<.35) tradeoffMsg='Shift α right to reduce procurement cost.';
+  else if(alpha>.65) tradeoffMsg='Shift α left to reduce Scope 3 emissions further.';
+  else tradeoffMsg='Near the Pareto knee — this is the efficient trade-off point.';
+  document.getElementById('insightBox').innerHTML=`<strong>Model Insight:</strong> α=${alpha.toFixed(2)} routes ${parseInt(document.getElementById('demand').value).toLocaleString()} units equally across <strong>${uPref.sel.length} suppliers</strong> led by <strong>${uPref.sel[0]?.name}</strong>. Scope 3 reduction: <strong style="color:var(--accent)">${pct}%</strong> vs. naive baseline. Carbon credit value: <strong>$${fl((bCO2-uPref.co2)*cp)}</strong>. ${tradeoffMsg}<br><span style="font-size:.72rem;opacity:.7;margin-top:4px;display:block;">⚠ Equal demand allocation assumed. Real-world capacity constraints not modelled.</span>`;
+}
+
+function exportCSV(){
+  if(!lastR){alert('Run the optimizer first.');return;}
+  const{uPref,cOpt,gOpt,bal,bCost,bCO2,cp,demand,sector}=lastR;
+  const mult=SMULT[sector];
+  const rows=[
+    ['Scope 3 Optimizer Report'],['Generated',new Date().toISOString()],['Sector',sector],['Demand',demand],['Carbon Price ($/tCO2e)',cp],['Alpha',document.getElementById('alpha').value],[],
+    ['=== SELECTED SUPPLIERS ==='],['ID','Name','Region','Unit Cost ($)','CO2e/unit','Lead (days)','Reliability','Tier'],
+    ...uPref.sel.map(s=>[s.id,s.name,s.region,(s.baseCost*mult).toFixed(2),s.co2,s.lead,s.rel,s.tier]),
+    [],['=== ROUTING SCENARIOS ==='],['Scenario','Annual Cost ($)','CO2e (t)','Cost Saving ($)','CO2 Saved (t)','Carbon Credit ($)'],
+    ...[[`Cost-Optimized`,cOpt],[`Balanced`,bal],[`Green-Optimized`,gOpt],[`Your Selection`,uPref]].map(([n,o])=>{
+      const cs=bCost-o.cost,es=bCO2-o.co2;
+      return[n,o.cost.toFixed(0),o.co2.toFixed(0),cs.toFixed(0),es.toFixed(0),(Math.max(0,es*cp)).toFixed(0)];
+    })
+  ];
+  if(lastMC){
+    rows.push([],['=== MONTE CARLO ==='],['Trials',lastMC.N],['Mean Cost ($)',lastMC.meanCost.toFixed(0)],['Std Dev ($)',lastMC.stdCost.toFixed(0)],['95% VaR ($)',lastMC.var95.toFixed(0)],['99% VaR ($)',lastMC.var99.toFixed(0)],['Mean CO2e (t)',lastMC.meanCO2.toFixed(0)],['Expected Saving ($)',lastMC.meanSav.toFixed(0)]);
+  }
+  const blob=new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`scope3-report-${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+function exportPDF(){
+  if(!lastR){alert('Run the optimizer first.');return;}
+  const{uPref,cOpt,gOpt,bal,bCost,bCO2,cp,demand,sector,alpha}=lastR;
+  const mult=SMULT[sector];
+  const date=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'long',day:'numeric'});
+  const scRow=(lbl,o)=>{const cs=bCost-o.cost,es=bCO2-o.co2;return`<tr><td><b>${lbl}</b></td><td>$${fl(o.cost)}</td><td>${fl(o.co2)}t</td><td style="color:${cs>0?'#00b87a':'#ef4444'}">${cs>0?'+':''}$${fl(cs)}</td><td style="color:#00b87a">${fl(es)}t</td><td>$${fl(Math.max(0,es*cp))}</td></tr>`;};
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Scope 3 Report</title>
+  <style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 32px;color:#1a1a2e;line-height:1.6;}h1{font-size:1.6rem;border-bottom:3px solid #00b87a;padding-bottom:12px;margin-bottom:6px;}
+  .sub{color:#666;font-size:.85rem;margin-bottom:28px;font-family:monospace;}h2{font-size:1rem;color:#00b87a;text-transform:uppercase;letter-spacing:2px;margin:28px 0 12px;}
+  table{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:20px;}th{background:#1a1a2e;color:white;padding:8px 12px;text-align:left;font-size:.75rem;}
+  td{padding:8px 12px;border-bottom:1px solid #e5e7eb;}tr:nth-child(even) td{background:#f9fafb;}
+  .params{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+  .p{background:#f3f4f6;padding:12px;border-radius:8px;border-left:3px solid #00b87a;}.pl{font-size:.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;}.pv{font-size:1.1rem;font-weight:bold;font-family:monospace;}
+  .disc{background:#fef3c7;border:1px solid #fcd34d;padding:12px 16px;border-radius:8px;font-size:.78rem;color:#92400e;margin-top:28px;}
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:.72rem;color:#9ca3af;font-family:monospace;}</style></head>
+  <body><h1>🌿 Scope 3 Emissions Optimizer</h1>
+  <div class="sub">Multi-Objective Supplier Routing Report · ${date} · GHG Protocol Cat.1 · EU CSRD Aligned</div>
+  <h2>Model Parameters</h2>
+  <div class="params">
+    <div class="p"><div class="pl">Sector</div><div class="pv">${sector.toUpperCase()}</div></div>
+    <div class="p"><div class="pl">Annual Demand</div><div class="pv">${parseInt(demand).toLocaleString()} units</div></div>
+    <div class="p"><div class="pl">Cost Weight (α)</div><div class="pv">${alpha}</div></div>
+    <div class="p"><div class="pl">Carbon Price</div><div class="pv">$${cp}/tCO₂e</div></div>
+    <div class="p"><div class="pl">Baseline Cost</div><div class="pv">$${fl(bCost)}</div></div>
+    <div class="p"><div class="pl">Baseline CO₂e</div><div class="pv">${fl(bCO2)} t</div></div>
+  </div>
+  <h2>Selected Suppliers (α = ${alpha})</h2>
+  <table><thead><tr><th>ID</th><th>Supplier</th><th>Region</th><th>Unit Cost ($)</th><th>CO₂e/unit</th><th>Lead (d)</th><th>Tier</th></tr></thead>
+  <tbody>${uPref.sel.map(s=>`<tr><td><b>${s.id}</b></td><td>${s.name}</td><td>${s.region}</td><td>$${(s.baseCost*mult).toFixed(2)}</td><td>${s.co2}</td><td>${s.lead}</td><td>T${s.tier}</td></tr>`).join('')}</tbody></table>
+  <h2>Routing Scenario Comparison</h2>
+  <table><thead><tr><th>Scenario</th><th>Annual Cost</th><th>CO₂e</th><th>Cost Saving</th><th>CO₂ Saved</th><th>Carbon Credits</th></tr></thead>
+  <tbody>${scRow('💰 Cost-Optimized',cOpt)+scRow('⚖️ Balanced',bal)+scRow('🌿 Green-Optimized',gOpt)+scRow('⭐ Your Selection',uPref)}</tbody></table>
+  ${lastMC?`<h2>Monte Carlo Risk (${lastMC.N} Trials)</h2>
+  <table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+  <tr><td>Mean Annual Cost</td><td>$${fl(lastMC.meanCost)}</td></tr>
+  <tr><td>Std Dev</td><td>$${fl(lastMC.stdCost)}</td></tr>
+  <tr><td>95% VaR</td><td style="color:#ef4444">$${fl(lastMC.var95)}</td></tr>
+  <tr><td>99% VaR</td><td style="color:#ef4444">$${fl(lastMC.var99)}</td></tr>
+  <tr><td>Mean CO₂e</td><td>${fl(lastMC.meanCO2)} t</td></tr>
+  <tr><td>Expected Saving</td><td style="color:#00b87a">$${fl(lastMC.meanSav)}</td></tr>
+  </tbody></table>`:''}
+  <div class="disc"><b>Model Disclosure:</b> Supplier data is synthetic and used for portfolio demonstration. Demand is distributed equally among selected suppliers; capacity constraints and minimum order quantities are omitted for simplicity. Pareto frontier generated via weighted-sum multi-objective optimisation (40 alpha steps). Monte Carlo uses log-normal demand distribution D ~ LogNormal(mu, sigma^2). Scope 3 = GHG Protocol Category 1 (Purchased Goods and Services). Carbon credits are indicative at the specified price.</div>
+  <footer>Scope 3 Optimizer v2.1 · Pareto + Monte Carlo · EU CSRD · GHG Protocol · Built by Supply Chain Analyst · ${new Date().getFullYear()}</footer>
+  </body></html>`;
+  try {
+    const w=window.open('','_blank');
+    if(!w){alert('PDF export was blocked by your browser pop-up blocker.\n\nTo fix: click the pop-up blocked icon in your address bar and allow pop-ups for this page, then click PDF again.');return;}
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>{ try{w.print();}catch(e){} },500);
+  } catch(e){
+    alert('Could not open PDF window. Please allow pop-ups for this page in your browser settings.');
+  }
+}
+
+function toggleMethod(){
+  const body=document.getElementById('methodBody');
+  const arrow=document.getElementById('methodArrow');
+  const open=body.classList.toggle('open');
+  arrow.textContent=open?'▲':'▼';
+}
+
+function fl(n){if(Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';if(Math.abs(n)>=1e3)return(n/1e3).toFixed(1)+'K';return n.toFixed(0);}
+</script>
+</body>
+</html>
