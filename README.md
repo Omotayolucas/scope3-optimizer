@@ -112,9 +112,12 @@ becomes financially dominant.
 
 ## Author
 
-Lucas Omotayo
+Omotayo Agbabiaka
 BSc Mathematics | LASUSTECH | Lagos, Nigeria
 Supply Chain Analytics & Operations Research
+GitHub: github.com/Omotayolucas
+Live Tool: https://omotayolucas.github.io/scope3-optimizer
+LinkedIn: https://www.linkedin.com/in/omotayo-agbabiaka-55b549164
 
 ## Disclaimer
 
